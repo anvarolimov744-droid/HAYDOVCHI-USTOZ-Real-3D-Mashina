@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>HAYDOVCHI USTOZ — Real 3D Mashina</title>
+<style>
+:root{--bg:#0f1720;--fg:#fff;--ac:#ffb020;--gl:rgba(15,23,32,.8)}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none;touch-action:none}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:system-ui,Arial,sans-serif}
+canvas#c{position:fixed;inset:0;width:100%;height:100%}
+.hud{position:fixed;background:var(--gl);border-radius:10px;padding:6px 10px;font-size:12px;z-index:10;backdrop-filter:blur(4px);box-shadow:0 2px 10px rgba(0,0,0,0.5)}
+#hud{top:calc(6px + env(safe-area-inset-top,0px));left:6px;max-width:50vw}
+#hud b{color:var(--ac)}
+#pen{top:calc(6px + env(safe-area-inset-top,0px));right:6px;text-align:right}
+#msg{top:calc(60px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:none;font-weight:700;text-align:center;max-width:80vw;z-index:20;background:rgba(200,40,40,0.9);padding:8px 16px;border-radius:8px}
+#g{position:fixed;left:50%;bottom:calc(8px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(320px,60vw);pointer-events:none;z-index:5;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.5))}
+.b{background:rgba(255,255,255,.15);border:2px solid #fff6;border-radius:10px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:6px 10px;font-size:12px;backdrop-filter:blur(4px);transition:0.1s}
+.b:active,.b.on{background:var(--ac);color:#000;transform:scale(0.95)}
+#top{position:fixed;right:6px;top:calc(50px + env(safe-area-inset-top,0px));display:flex;gap:6px;z-index:10}
+#tl,#tr{position:fixed;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;gap:6px;z-index:10}
+#tl{left:6px}#tl .b{width:70px;height:70px;font-size:28px;border-radius:50%}
+#tr{right:6px;flex-direction:column;align-items:flex-end;gap:8px}
+#gr{display:flex;gap:4px}#gr .b{width:38px;height:38px;padding:0;font-size:13px}
+#pd{display:flex;gap:6px}#pd .b{width:56px;height:80px;font-size:11px}
+
+#rotate{position:fixed;inset:0;background:#0f1720;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:999;color:#fff;text-align:center}
+@media (orientation: portrait) { #rotate { display: flex; } }
+
+.ov{position:fixed;inset:0;background:rgba(8,12,18,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;overflow:auto;text-align:center;z-index:100}
+.hidden{display:none}
+.ov h1{margin:0;font-size:clamp(24px,6vw,40px);color:var(--ac);letter-spacing:1px;text-shadow:0 4px 10px rgba(255,176,32,0.3)}
+.ov p{margin:0;opacity:.85;max-width:560px;font-size:13px}
+.ov .b{width:min(420px,90vw);justify-content:flex-start;gap:10px;text-align:left;font-size:14px;padding:12px}
+.k{font-size:11px;opacity:.7;max-width:560px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div id="rotate">
+  <h1 style="font-size:40px;margin-bottom:10px;">📱↻</h1>
+  <h2>Telefonni yonbosh qiling</h2>
+  <p>O'yin gorizontal (landshaft) rejimda ishlaydi.</p>
+</div>
+
+<canvas id="c"></canvas>
+
+<div class="hud" id="hud"><b id="lt"></b><div id="ld"></div></div>
+<div class="hud" id="pen">Jarima: <b id="pn">0</b></div>
+<div class="hud" id="msg"></div>
+<div id="top"><div class="b" id="cb">📷</div><div class="b" id="mb">☰</div></div>
+<canvas id="g" width="320" height="150"></canvas>
+
+<div id="tl"><div class="b" data-k="left">◀</div><div class="b" data-k="right">▶</div></div>
+
+<div id="tr">
+  <div id="gr">
+    <div class="b" data-e="1">🔑</div>
+    <div class="b" data-g="-1">R</div>
+    <div class="b" data-g="0">N</div>
+    <div class="b" data-g="1">1</div>
+    <div class="b" data-g="2">2</div>
+    <div class="b" data-g="3">3</div>
+    <div class="b" data-g="4">4</div>
+    <div class="b" data-g="5">5</div>
+  </div>
+  <div id="pd">
+    <div class="b" data-k="clutch">DEBRIYAJ</div>
+    <div class="b" data-k="brake">TORMOZ</div>
+    <div class="b" data-k="gas">GAZ</div>
+  </div>
+</div>
+
+<div class="ov" id="menu">
+  <h1>🚗 HAYDOVCHI USTOZ</h1>
+  <p>Real 3D Grafikalar · Mexanik uzatma · Sensorli boshqaruv</p>
+  <div id="ll" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div class="k">Kamerani aylantirish uchun ekranning o'ng tomonidan barmog'ingizni suring.</div>
+</div>
+
+<div class="ov hidden" id="res">
+  <h1 id="rt"></h1>
+  <p id="rd"></p>
+  <div class="b" id="rr" style="justify-content:center">↻ Qayta urinish</div>
+  <div class="b" id="rm" style="justify-content:center">☰ Menyu</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+// ====== THREE.JS SAHNA ======
+const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9ccfff);
+scene.fog = new THREE.Fog(0x9ccfff, 70, 330);
+const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 500);
+
+// Yorug'lik
+scene.add(new THREE.HemisphereLight(0xffffff, 0x556655, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(50, 100, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+scene.add(sun);
+
+const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.2 });
+const shinyMat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.2, metalness: 0.8 });
+const glassMat = new THREE.MeshStandardMaterial({ color: 0x111122, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.85 });
+
+function box(w, h, d, c, x, y, z, p, m) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || mat(c));
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  (p || scene).add(mesh);
+  return mesh;
+}
+
+// Yer va Yo'llar
+const gnd = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), mat(0x4a7a3a));
+gnd.rotation.x = -Math.PI / 2;
+gnd.receiveShadow = true;
+scene.add(gnd);
+const G = 80;
+for (let k = -4; k <= 4; k++) {
+  box(14, 0.04, 660, 0x33363a, k * G, 0.02, 0);
+  box(660, 0.04, 14, 0x33363a, 0, 0.03, k * G);
+  box(0.3, 0.05, 660, 0xe8c030, k * G, 0.06, 0);
+  box(660, 0.05, 0.3, 0xe8c030, 0, 0.07, k * G);
+}
+
+// Binolar
+const col = [];
+let sd = 7;
+const rnd = () => (sd = sd * 16807 % 2147483647) / 2147483647;
+const pal = [0xb5651d, 0xc9b79c, 0x8d99ae, 0xa0522d, 0xd9c5a0, 0x7b8794, 0xcf9f78];
+for (let i = -4; i < 4; i++) for (let j = -4; j < 4; j++) {
+  if (i === 1 && j === -1) continue;
+  for (const a of [-16, 16]) for (const b of [-16, 16]) {
+    const h = 10 + rnd() * 34, cx = i * G + 40 + a, cz = j * G + 40 + b;
+    box(26, h, 26, pal[Math.floor(rnd() * pal.length)], cx, h / 2, cz);
+    col.push({ x: cx, z: cz, hx: 13, hz: 13 });
+  }
+}
+
+// Parkovka va Svetofor
+box(60, 0.05, 72, 0x8a8d90, 120, 0.04, -40);
+box(0.12, 0.06, 5.6, 0xffffff, 118.5, 0.09, -40);
+box(0.12, 0.06, 5.6, 0xffffff, 121.5, 0.09, -40);
+box(3, 0.06, 0.12, 0xffffff, 120, 0.09, -37.2);
+box(4, 0.5, 0.6, 0xcccccc, 120, 0.25, -35.5);
+col.push({ x: 120, z: -35.5, hx: 2, hz: 0.3 });
+box(7, 0.05, 0.6, 0xffffff, -3.5, 0.1, -9);
+box(0.3, 5, 0.3, 0x222222, -9, 2.5, -9);
+box(1.2, 3.2, 0.6, 0x111111, -9, 5.4, -9);
+const LC = [0x22dd55, 0xffcc00, 0xff2222];
+const lamps = [0, 1, 2].map(i => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 12), new THREE.MeshBasicMaterial({ color: 0x222222 }));
+  m.position.set(-9, 6.4 - i * 1.0, -9.4);
+  scene.add(m);
+  return m;
+});
+function lightState(t) { const c = ((t % 20) + 20) % 20; return c < 9 ? 0 : c < 11 ? 1 : 2; }
+
+// ====== HAQIQIY MASHINA MODELI ======
+let wheels = [];
+function mkCar(c) {
+  const g = new THREE.Group();
+  
+  // 1. Asosiy kuzov (silliq shakl)
+  box(1.8, 0.5, 4.2, c, 0, 0.65, 0, g, shinyMat(c));
+  
+  // 2. Pastki bamper (qora)
+  box(1.85, 0.2, 4.25, 0x111111, 0, 0.45, 0, g);
+  
+  // 3. Kapot va Bagaj (ozgina qiya qilingan)
+  box(1.75, 0.15, 1.6, c, 0, 0.95, 1.2, g, shinyMat(c));
+  box(1.75, 0.15, 1.0, c, 0, 0.95, -1.6, g, shinyMat(c));
+  
+  // 4. Kabina (tom)
+  box(1.6, 0.6, 2.0, c, 0, 1.3, -0.2, g, shinyMat(c));
+  
+  // 5. Oynalar (qiyshiq)
+  const ws = box(1.5, 0.6, 0.05, 0, 0, 1.3, 0.85, g, glassMat); ws.rotation.x = -0.4;
+  const rw = box(1.5, 0.6, 0.05, 0, 0, 1.3, -1.25, g, glassMat); rw.rotation.x = 0.4;
+  box(0.05, 0.45, 1.6, 0, -0.8, 1.3, -0.2, g, glassMat);
+  box(0.05, 0.45, 1.6, 0, 0.8, 1.3, -0.2, g, glassMat);
+  
+  // 6. Faralar (Yorqin)
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+  box(0.4, 0.15, 0.1, 0, -0.6, 0.75, 2.15, g, headMat);
+  box(0.4, 0.15, 0.1, 0, 0.6, 0.75, 2.15, g, headMat);
+  
+  // 7. Orqa chiroqlar (Tormozda yonadi)
+  g.tailMat = new THREE.MeshBasicMaterial({ color: 0x550000 });
+  g.tail = [
+    box(0.4, 0.15, 0.1, 0, -0.6, 0.75, -2.15, g, g.tailMat),
+    box(0.4, 0.15, 0.1, 0, 0.6, 0.75, -2.15, g, g.tailMat)
+  ];
+  
+  // 8. Panjara (Grill)
+  box(0.8, 0.2, 0.05, 0x111111, 0, 0.55, 2.15, g);
+
+  // 9. G'ildiraklar
+  const tireGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.25, 16);
+  const rimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.26, 8);
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 });
+  
+  for (const x of [-0.9, 0.9]) for (const z of [-1.3, 1.3]) {
+    const w = new THREE.Group();
+    const t = new THREE.Mesh(tireGeo, tireMat); t.rotation.z = Math.PI / 2; t.castShadow = true; w.add(t);
+    const r = new THREE.Mesh(rimGeo, rimMat); r.rotation.z = Math.PI / 2; w.add(r);
+    w.position.set(x, 0.33, z);
+    g.add(w);
+    wheels.push({ mesh: w, isFront: z > 0 });
+  }
+  return g;
+}
+
+const cr = mkCar(0x1f6fe5); // Ko'k mashina
+scene.add(cr);
+
+for (const [x, c] of [[116, 0xcc2222], [124, 0xdddddd]]) {
+  const p = mkCar(c);
+  p.position.set(x, 0, -40);
+  scene.add(p);
+  col.push({ x: x, z: -40, hx: 0.9, hz: 2.1 });
+}
+
+// ====== FIZIKA ======
+const GR = { '-1': -3.2, 1: 3.6, 2: 2.2, 3: 1.5, 4: 1.1, 5: 0.85 };
+const FD = 3.5, RAD = 0.33, IDLE = 900, RED = 6800, L = 2.7;
+
+const car = { x: 0, z: 0, h: 0, v: 0, st: 0, pz: 0 };
+let gear = 1; 
+let rpm = IDLE, on = true, thr = 0, clu = 0, brk = 0, hand = 0;
+let inGame = false, pen = 0, cur = null, t0 = 0, tNow = 0, done = false, cool = 0, hold = 0, spT = 0;
+const keys = {};
+
+let camAngle = 0; 
+let isDragging = false;
+let lastTouchX = 0;
+
+function toast(s, ms = 2200) {
+  const m = $('msg'); m.textContent = s; m.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', ms);
+}
+function addPen(n, why) {
+  if (done) return; pen += n; $('pn').textContent = pen; toast('⚠ ' + why + ' (+' + n + ')');
+}
+
+function setGear(g) {
+  if (!inGame) return; if (g === gear) return;
+  if (g !== 0 && Math.abs(car.v) > 1 && clu < 0.7) { toast('Debriyajni bosing!'); return; }
+  if (g === -1 && car.v > 1) { toast('Avval to‘xtang!'); return; }
+  if (g > 0 && car.v < -1) { toast('Avval to‘xtang!'); return; }
+  gear = g;
+}
+function startEng() {
+  if (!on) {
+    if (gear !== 0 && clu < 0.6) { toast('Debriyajni bosing yoki N tanlang'); return; }
+    on = true; rpm = IDLE; toast('🔑 Dvigatel yondi');
+  }
+}
+
+const lessons = [
+  { t: '1-dars: Uzatmalar', d: 'Gaz bosing va 1-uzatmada yuring. 5-uzatmada 70 km/soatga yeting.', s: [-3.5, -300, 0], ck() { if (gear === 5 && car.v * 3.6 >= 70) fin(true); } },
+  { t: '2-dars: Svetofor', d: 'Qizil chiroqda to‘xtang. Yashilda o‘ting.', s: [-3.5, -45, 0], lim: 1, lg: 1, ck() { if (car.z > 14 && car.z < 80 && Math.abs(car.x) < 8) fin(true); } },
+  { t: '3-dars: Parkovka', d: 'Oq chiziqlar orasiga to‘xtang va 2 soniya turing.', s: [100, -70, 0], lim: 1,
+    ck(dt) {
+      const dx = Math.abs(car.x - 120), dz = Math.abs(car.z + 40), a = Math.abs(Math.sin(car.h));
+      if (dx < 0.9 && dz < 1 && a < 0.22 && Math.abs(car.v) < 0.3) { hold += dt; if (hold > 2) fin(true); } else hold = 0;
+    } },
+  { t: '4-dars: Erkin haydash', d: 'Shaharda erkin yuring.', s: [-3.5, -120, 0], lim: 1, lg: 1, free: 1, ck() {} }
+];
+
+let prog = {}; try { prog = JSON.parse(localStorage.getItem('hu') || '{}'); } catch (e) {}
+function buildMenu() {
+  $('ll').innerHTML = '';
+  lessons.forEach((l, i) => {
+    const b = document.createElement('div'); b.className = 'b';
+    b.textContent = (prog[i] != null ? '✅ ' : '▶ ') + l.t + (prog[i] != null ? ' (jarima ' + prog[i] + ')' : '');
+    b.onclick = () => start(i); $('ll').appendChild(b);
+  });
+}
+function start(i) {
+  cur = i; const l = lessons[i];
+  [car.x, car.z, car.h] = l.s; car.v = 0; car.st = 0; gear = 1; rpm = IDLE; on = true;
+  pen = 0; done = false; hold = 0; $('pn').textContent = 0;
+  $('lt').textContent = l.t; $('ld').textContent = l.d;
+  t0 = performance.now() / 1000; inGame = true; camAngle = 0;
+  $('menu').classList.add('hidden'); $('res').classList.add('hidden'); ae();
+}
+function fin(ok) {
+  if (done) return; done = true; inGame = false; const l = lessons[cur];
+  const pass = ok && pen < 10;
+  if (pass && (prog[cur] == null || pen < prog[cur])) {
+    prog[cur] = pen; try { localStorage.setItem('hu', JSON.stringify(prog)); } catch (e) {}
+  }
+  $('rt').textContent = pass ? '🏆 Dars bajarildi!' : '❌ Muvaffaqiyatsiz';
+  $('rd').textContent = 'Jarima: ' + pen + (pass ? ' · Sertifikat ✔' : ' · 10 balldan kam kerak');
+  $('res').classList.remove('hidden'); buildMenu();
+}
+$('rr').onclick = () => start(cur);
+$('rm').onclick = () => { inGame = false; $('res').classList.add('hidden'); $('menu').classList.remove('hidden'); };
+$('mb').onclick = () => { inGame = false; $('menu').classList.remove('hidden'); };
+
+const km = {
+  ArrowUp: 'gas', w: 'gas', W: 'gas', ArrowDown: 'brake', s: 'brake', S: 'brake',
+  ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right',
+  Shift: 'clutch', c: 'clutch', C: 'clutch', ' ': 'hand'
+};
+addEventListener('keydown', e => {
+  ae(); if (km[e.key]) { keys[km[e.key]] = 1; e.preventDefault(); }
+  const k = e.key.toLowerCase();
+  if (k === 'r') setGear(-1); else if (k === 'n' || k === '0') setGear(0);
+  else if ('12345'.includes(k) && k.length == 1) setGear(+k);
+  else if (k === 'e') startEng();
+  else if (e.key === 'Escape') { inGame = false; $('menu').classList.remove('hidden'); }
+});
+addEventListener('keyup', e => { if (km[e.key]) keys[km[e.key]] = 0; });
+
+document.querySelectorAll('[data-k]').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { ae(); keys[k] = 1; b.classList.add('on'); b.setPointerCapture(e.pointerId); });
+  ['pointerup', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => { keys[k] = 0; b.classList.remove('on'); }));
+});
+document.querySelectorAll('[data-g]').forEach(b => b.addEventListener('pointerdown', () => { ae(); setGear(+b.dataset.g); }));
+document.querySelectorAll('[data-e]').forEach(b => b.addEventListener('pointerdown', () => { ae(); startEng(); }));
+
+// 360 Kamera
+const touchArea = $('c');
+touchArea.addEventListener('touchstart', e => {
+  if (e.touches[0].clientX > window.innerWidth / 2 && inGame) {
+    isDragging = true;
+    lastTouchX = e.touches[0].clientX;
+  }
+}, { passive: false });
+touchArea.addEventListener('touchmove', e => {
+  if (isDragging) {
+    const dx = e.touches[0].clientX - lastTouchX;
+    camAngle -= dx * 0.01;
+    lastTouchX = e.touches[0].clientX;
+  }
+}, { passive: false });
+touchArea.addEventListener('touchend', () => { isDragging = false; });
+
+let AC, osc, gn;
+function ae() {
+  try {
+    if (!AC) {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      osc = AC.createOscillator(); osc.type = 'sawtooth'; gn = AC.createGain(); gn.gain.value = 0;
+      const f = AC.createBiquadFilter(); f.frequency.value = 700;
+      osc.connect(f); f.connect(gn); gn.connect(AC.destination); osc.start();
+    }
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) {}
+}
+
+// ====== FIZIKA ======
+function step(dt) {
+  const gasInput = keys.gas ? 1 : 0;
+  const brakeInput = keys.brake ? 1 : 0;
+  const clutchInput = keys.clutch ? 1 : 0;
+  hand = keys.hand ? 1 : 0;
+
+  thr += (gasInput - thr) * Math.min(1, dt * 8);
+  brk += (brakeInput - brk) * Math.min(1, dt * 10);
+  clu += (clutchInput - clu) * Math.min(1, dt * (clutchInput > clu ? 12 : 4));
+  if (thr < 0.01) thr = 0; if (brk < 0.01) brk = 0; if (clu < 0.01) clu = 0; if (clu > 0.99) clu = 1;
+
+  if (!on) {
+    rpm += (0 - rpm) * Math.min(1, dt * 4);
+    const decel = 400 * dt;
+    if (Math.abs(car.v) <= decel) car.v = 0; else car.v -= Math.sign(car.v) * decel;
+    car.st += ((keys.left ? 1 : 0) - (keys.right ? 1 : 0)) * 0.5 * dt;
+    car.h += car.v / L * Math.tan(car.st) * dt;
+    const nx = car.x + Math.sin(car.h) * car.v * dt;
+    const nz = car.z + Math.cos(car.h) * car.v * dt;
+    let hit = Math.abs(nx) > 330 || Math.abs(nz) > 330;
+    if (!hit) for (const b of col) if (Math.abs(nx - b.x) < b.hx + 1 && Math.abs(nz - b.z) < b.hz + 1.1) { hit = true; break; }
+    if (hit) { car.v = 0; } else { car.x = nx; car.z = nz; }
+    return;
+  }
+
+  const ratio = gear === 0 ? 0 : Math.abs(GR[gear]) * FD;
+  const sg = gear < 0 ? -1 : 1;
+  const wheelRPM = Math.abs(car.v) / (2 * Math.PI * RAD) * 60 * ratio;
+  const freeRPM = IDLE + thr * (RED - IDLE) * 0.95;
+  const engage = 1 - clu;
+
+  let targetRPM;
+  if (gear === 0 || clu > 0.95) targetRPM = freeRPM;
+  else targetRPM = freeRPM * (1 - engage) + Math.max(wheelRPM, IDLE * 0.5) * engage;
+  
+  rpm += (targetRPM - rpm) * Math.min(1, dt * 10);
+  rpm = Math.max(0, Math.min(RED + 500, rpm));
+
+  if (gear !== 0 && engage > 0.7 && rpm < 400 && Math.abs(car.v) < 0.3 && thr < 0.05) {
+    on = false; rpm = 0; toast('Dvigatel bo‘g‘ildi! Debriyaj + E', 3500); return;
+  }
+
+  let torque = 0;
+  if (thr > 0.01 && rpm > 400) {
+    const rpmRatio = rpm / RED;
+    const curve = Math.max(0.6, 1 - Math.pow((rpmRatio - 0.55) * 1.4, 2));
+    torque = 350 * curve * thr;
+  }
+
+  let force = 0;
+  if (gear !== 0 && engage > 0.05) {
+    force = sg * torque * ratio * 2.0 / RAD * engage;
+    if (thr < 0.05 && engage > 0.5 && Math.abs(car.v) > 0.5) force -= Math.sign(car.v) * (rpm / 6000) * ratio * 100 * engage;
+  }
+
+  const drag = 0.2 * car.v * Math.abs(car.v);
+  const rolling = 30 * Math.sign(car.v) * (Math.abs(car.v) > 0.1 ? 1 : 0);
+  const mass = 900;
+  car.v += (force - drag - rolling) / mass * dt;
+
+  const bd = (brk * 14 + hand * 7) * dt;
+  if (Math.abs(car.v) <= bd) car.v = 0; else car.v -= Math.sign(car.v) * bd;
+  if (Math.abs(car.v) < 0.05 && thr < 0.01 && brk < 0.1) car.v = 0;
+
+  const steerInput = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+  car.st += (steerInput * 0.55 / (1 + Math.abs(car.v) * 0.09) - car.st) * Math.min(1, dt * 5);
+  car.h += car.v / L * Math.tan(car.st) * dt;
+
+  const nx = car.x + Math.sin(car.h) * car.v * dt;
+  const nz = car.z + Math.cos(car.h) * car.v * dt;
+  let hit = Math.abs(nx) > 330 || Math.abs(nz) > 330;
+  if (!hit) for (const b of col) if (Math.abs(nx - b.x) < b.hx + 1 && Math.abs(nz - b.z) < b.hz + 1.1) { hit = true; break; }
+  if (hit) {
+    if (Math.abs(car.v) > 1.5 && cool <= 0) { addPen(2, 'To‘qnashuv!'); cool = 1.5; }
+    car.v *= -0.3;
+  } else { car.x = nx; car.z = nz; }
+  cool -= dt;
+
+  const l = lessons[cur];
+  if (l.lim && car.v * 3.6 > 65) {
+    spT += dt; if (spT > 3) { spT = 0; addPen(1, 'Tezlik chegarasi!'); }
+  }
+  if (l.lg) {
+    const ls = lightState(tNow + 11);
+    if (ls === 2 && car.pz < -9 && car.z >= -9 && Math.abs(car.x) < 8) addPen(5, 'Qizil chiroq!');
+  }
+  car.pz = car.z; l.ck(dt);
+}
+
+// ====== GRAFIKA ======
+function draw() {
+  lamps.forEach((m, i) => m.material.color.setHex(lightState(tNow + 11) === i ? LC[i] : 0x222222));
+  cr.position.set(car.x, 0, car.z); cr.rotation.y = car.h;
+  
+  // Tormoz chiroqlari
+  cr.tailMat.color.setHex(brk > 0.1 ? 0xff2222 : 0x550000);
+
+  // G'ildiraklarni aylantirish
+  const wheelRot = car.v * 10;
+  wheels.forEach(w => {
+    if (w.isFront) w.mesh.rotation.y = car.st * 2;
+    w.mesh.children.forEach(child => child.rotation.x = wheelRot);
+  });
+
+  if (!isDragging) {
+    camAngle *= 0.95; 
+    if (Math.abs(camAngle) < 0.01) camAngle = 0;
+  }
+
+  const totalAngle = car.h + camAngle;
+  const camDist = 7.5 + Math.abs(car.v) * 0.15;
+  
+  camera.position.set(car.x - Math.sin(totalAngle) * camDist, 3.5, car.z - Math.cos(totalAngle) * camDist);
+  camera.lookAt(car.x, 1.0, car.z);
+  
+  const c = $('g').getContext('2d');
+  c.clearRect(0, 0, 320, 150);
+  c.fillStyle = 'rgba(10,14,20,.85)'; c.fillRect(0, 30, 320, 120);
+  
+  function dial(cx, cy, r, v, mx, lb, n, dv) {
+    c.lineWidth = 3; c.strokeStyle = '#fff6'; c.beginPath(); c.arc(cx, cy, r, 0.75 * Math.PI, 2.25 * Math.PI); c.stroke();
+    c.fillStyle = '#fff'; c.font = '9px sans-serif'; c.textAlign = 'center';
+    for (let i = 0; i <= n; i++) {
+      const a = 0.75 * Math.PI + 1.5 * Math.PI * i / n;
+      c.fillText(Math.round(i * mx / n / dv), cx + Math.cos(a) * (r - 12), cy + Math.sin(a) * (r - 12) + 2);
+    }
+    const a = 0.75 * Math.PI + 1.5 * Math.PI * Math.min(1, v / mx);
+    c.strokeStyle = '#f33'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5)); c.stroke();
+    c.fillStyle = '#fff'; c.fillText(lb, cx, cy + r - 6);
+  }
+  dial(70, 90, 55, Math.abs(car.v) * 3.6, 240, 'km/soat', 8, 1);
+  dial(250, 90, 55, rpm, 8000, 'ayl/daq', 8, 1000);
+  
+  c.fillStyle = '#ffb020'; c.font = 'bold 32px sans-serif'; c.textAlign = 'center';
+  c.fillText(gear < 0 ? 'R' : gear === 0 ? 'N' : gear, 160, 80);
+  c.fillStyle = '#fff'; c.font = 'bold 18px sans-serif'; c.fillText(Math.round(Math.abs(car.v) * 3.6), 160, 105);
+  c.font = '10px sans-serif'; c.fillStyle = on ? '#6f6' : '#f66';
+  c.fillText(on ? 'DVIGATEL' : 'O‘CHIQ (E)', 160, 125);
+  c.fillStyle = '#fff'; c.fillText('Debriyaj ' + Math.round(clu * 100) + '%', 160, 138);
+  
+  if (gn && AC) { osc.frequency.value = rpm / 10 + 20; gn.gain.value = on ? 0.04 + thr * 0.05 : 0; }
+}
+
+function rs() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', rs); rs();
+
+let last = performance.now();
+(function loop(n) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (n - last) / 1000); last = n;
+  tNow = n / 1000 - t0;
+  if (inGame) step(dt);
+  else if (cur == null) {
+    car.x = -3.5; car.z = -300;
+    camera.position.set(Math.sin(n / 6000) * 40, 25, -300 + Math.cos(n / 6000) * 40);
+    camera.lookAt(0, 5, -300);
+  }
+  if (cur != null) draw();
+  renderer.render(scene, camera);
+})(last);
+buildMenu();
+</script></body></html>
